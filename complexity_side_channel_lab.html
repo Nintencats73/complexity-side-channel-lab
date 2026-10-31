@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Complexity & Side-Channel Lab</title>
+<style>
+  :root { color-scheme: light; --ink:#182230; --muted:#596579; --line:#d9e0e8; --panel:#fff; --bg:#f3f6fa; --blue:#2463eb; --teal:#087f8c; --orange:#b45309; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  header { background:#14243a; color:white; padding:28px max(20px, calc((100% - 1100px)/2)); }
+  header h1 { margin:0 0 6px; font-size:clamp(1.6rem,4vw,2.25rem); }
+  header p { margin:0; color:#d6e2f2; max-width:760px; }
+  main { max-width:1100px; margin:24px auto 60px; padding:0 18px; }
+  .tabs { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:18px; }
+  button, select, input { font:inherit; }
+  button, select { cursor:pointer; }
+  .tab { border:1px solid var(--line); border-radius:9px; background:white; padding:9px 14px; color:var(--ink); }
+  .tab[aria-selected="true"] { background:var(--blue); color:white; border-color:var(--blue); }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px; box-shadow:0 3px 14px #14243a0b; }
+  .panel h2 { margin:0 0 5px; font-size:1.3rem; }
+  .intro { color:var(--muted); margin:0 0 18px; }
+  .controls { display:flex; flex-wrap:wrap; gap:16px 22px; align-items:end; margin:16px 0; }
+  .control { min-width:190px; flex:1; }
+  label { display:block; font-weight:650; margin-bottom:5px; }
+  input[type=range] { width:100%; accent-color:var(--blue); }
+  select { width:100%; border:1px solid #b9c4d2; border-radius:8px; padding:9px; background:white; }
+  .value { font-variant-numeric:tabular-nums; color:var(--blue); font-weight:750; }
+  canvas { display:block; width:100%; height:310px; border:1px solid var(--line); border-radius:10px; background:#fff; }
+  .legend { display:flex; flex-wrap:wrap; gap:12px 20px; margin:10px 0 0; color:var(--muted); font-size:.9rem; }
+  .key { display:inline-block; width:18px; height:4px; border-radius:4px; vertical-align:middle; margin-right:6px; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; margin-top:16px; }
+  .stat { background:#f6f8fb; border:1px solid var(--line); border-radius:10px; padding:12px; }
+  .stat small { display:block; color:var(--muted); }
+  .stat strong { font-size:1.18rem; font-variant-numeric:tabular-nums; }
+  .note { border-left:4px solid var(--teal); background:#eef9fa; padding:12px 14px; margin-top:16px; border-radius:0 8px 8px 0; }
+  .warning { border-left-color:var(--orange); background:#fff7ed; }
+  .hidden { display:none; }
+  .compare { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:14px; }
+  .compare > div { border:1px solid var(--line); border-radius:10px; padding:14px; background:#fbfcfe; }
+  .bar-wrap { height:18px; background:#e7edf4; border-radius:20px; overflow:hidden; margin:8px 0; }
+  .bar { height:100%; border-radius:20px; transition:width .2s; }
+  .mono { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; }
+  .sequence { display:flex; gap:5px; flex-wrap:wrap; margin:12px 0; }
+  .bit { border:1px solid #aab6c5; border-radius:6px; padding:5px 9px; min-width:34px; text-align:center; background:white; }
+  .bit.match { background:#d9f4e7; border-color:#23965e; }
+  .bit.miss { background:#ffeadc; border-color:#d97736; }
+  .actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .primary { border:0; border-radius:8px; background:var(--blue); color:white; padding:10px 15px; font-weight:650; }
+  .secondary { border:1px solid var(--line); border-radius:8px; background:white; padding:9px 13px; }
+  .explain { color:var(--muted); font-size:.94rem; }
+  footer { color:var(--muted); font-size:.85rem; margin-top:18px; }
+  @media(max-width:650px) { .compare { grid-template-columns:1fr; } canvas { height:260px; } .panel { padding:15px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Complexity & Side-Channel Lab</h1>
+  <p>Explore how algorithm cost grows with input size, then see how an implementation can reveal information through its execution time—even when its output is correct.</p>
+</header>
+<main>
+  <nav class="tabs" aria-label="Choose a lab">
+    <button class="tab" id="tab-complexity" aria-selected="true">1. Algorithmic complexity</button>
+    <button class="tab" id="tab-side" aria-selected="false">2. Timing side channel</button>
+  </nav>
+
+  <section class="panel" id="complexity">
+    <h2>How does work scale?</h2>
+    <p class="intro">Choose a growth function and change the input size. The graph compares estimated operation counts—not elapsed seconds.</p>
+    <div class="controls">
+      <div class="control">
+        <label for="size">Input size, n: <span class="value" id="n-label">40</span></label>
+        <input id="size" type="range" min="2" max="100" value="40">
+      </div>
+      <div class="control">
+        <label for="scale">Growth functions</label>
+        <select id="scale">
+          <option value="all">Compare all common classes</option>
+          <option value="linear">O(n) — linear</option>
+          <option value="quadratic">O(n²) — quadratic</option>
+          <option value="log">O(log n) — logarithmic</option>
+          <option value="nlogn">O(n log n) — linearithmic</option>
+          <option value="constant">O(1) — constant</option>
+        </select>
+      </div>
+    </div>
+    <canvas id="growth" width="1000" height="360" role="img" aria-label="Graph comparing operation growth for common algorithmic complexity classes"></canvas>
+    <div class="legend" id="legend"></div>
+    <div class="stats" id="complexity-stats"></div>
+    <div class="note"><strong>Read the graph:</strong> Big-O describes how resource use grows as n becomes large. It suppresses constant factors and lower-order terms; it is not a precise runtime prediction for a particular computer.</div>
+    <p class="explain">Examples: scanning an unsorted list is typically O(n); checking every pair is O(n²); binary search on sorted data is O(log n); and a typical comparison sort is O(n log n).</p>
+  </section>
+
+  <section class="panel hidden" id="sidechannel">
+    <h2>Can elapsed time reveal a secret?</h2>
+    <p class="intro">This toy verifier compares a guess with a secret one character at a time. Its intentionally leaky version stops at the first mismatch. The constant-time-style version always processes the full length.</p>
+    <div class="controls">
+      <div class="control">
+        <label for="secret">Toy secret (1–8 digits)</label>
+        <input id="secret" type="text" inputmode="numeric" maxlength="8" value="5831" style="width:100%;padding:9px;border:1px solid #b9c4d2;border-radius:8px">
+      </div>
+      <div class="control">
+        <label for="guess">Your guess</label>
+        <input id="guess" type="text" inputmode="numeric" maxlength="8" value="5800" style="width:100%;padding:9px;border:1px solid #b9c4d2;border-radius:8px">
+      </div>
+      <div class="control">
+        <label for="mode">Comparison strategy</label>
+        <select id="mode">
+          <option value="leaky">Early-exit comparison (leaky)</option>
+          <option value="constant">Fixed-work comparison (constant-time style)</option>
+        </select>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="primary" id="run">Run comparison</button>
+      <button class="secondary" id="reset">Reset example</button>
+    </div>
+    <div class="sequence" id="steps" aria-label="Character comparison steps"></div>
+    <div class="stats" id="timing-stats"></div>
+    <div class="compare">
+      <div>
+        <strong>Early-exit work</strong>
+        <div class="bar-wrap"><div class="bar" id="leaky-bar" style="width:0;background:#d97736"></div></div>
+        <span id="leaky-label" class="explain">Run to compare</span>
+      </div>
+      <div>
+        <strong>Fixed-work comparison</strong>
+        <div class="bar-wrap"><div class="bar" id="fixed-bar" style="width:0;background:#087f8c"></div></div>
+        <span id="fixed-label" class="explain">Run to compare</span>
+      </div>
+    </div>
+    <div class="note warning"><strong>Important:</strong> the “time units” are a simplified teaching model, not measurements from your device. Real timing depends on noise, hardware, runtime, network conditions, and many other factors. Do not use this demo to test real systems or secrets.</div>
+    <p class="explain"><strong>Why it matters:</strong> if response time depends on how many leading characters match, repeated measurements may leak information about a secret. A fixed-work comparison aims to avoid data-dependent early exits. Real constant-time engineering requires careful implementation and platform-aware testing; source-code appearance alone is not proof.</p>
+  </section>
+  <footer>Educational simulation. Complexity curves are normalized for readability; timing values are illustrative and deterministic.</footer>
+</main>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const colors = {constant:"#64748b",log:"#8b5cf6",linear:"#2563eb",nlogn:"#0891b2",quadratic:"#d97706"};
+  const names = {constant:"O(1)",log:"O(log n)",linear:"O(n)",nlogn:"O(n log n)",quadratic:"O(n²)"};
+  const functions = {
+    constant:n=>1, log:n=>Math.log2(n), linear:n=>n,
+    nlogn:n=>n*Math.log2(n), quadratic:n=>n*n
+  };
+  function show(which) {
+    const comp = which === "complexity";
+    $("complexity").classList.toggle("hidden", !comp);
+    $("sidechannel").classList.toggle("hidden", comp);
+    $("tab-complexity").setAttribute("aria-selected", String(comp));
+    $("tab-side").setAttribute("aria-selected", String(!comp));
+  }
+  $("tab-complexity").addEventListener("click",()=>show("complexity"));
+  $("tab-side").addEventListener("click",()=>show("sidechannel"));
+
+  function drawGrowth() {
+    const n = +$("size").value, selected = $("scale").value;
+    $("n-label").textContent = n;
+    const canvas = $("growth"), ctx = canvas.getContext("2d"), W=canvas.width,H=canvas.height;
+    ctx.clearRect(0,0,W,H);
+    const keys = selected==="all" ? ["constant","log","linear","nlogn","quadratic"] : [selected];
+    const maxX=100, maxRaw=Math.max(...keys.map(k=>functions[k](maxX)));
+    // Normalize each series to a common maximum so growth shapes can be compared.
+    const plot={l:72,r:25,t:25,b:52}, pw=W-plot.l-plot.r, ph=H-plot.t-plot.b;
+    ctx.strokeStyle="#e5eaf0"; ctx.lineWidth=1; ctx.fillStyle="#5b6677"; ctx.font="14px system-ui";
+    for(let i=0;i<=4;i++){
+      const y=plot.t+ph*i/4;
+      ctx.beginPath();ctx.moveTo(plot.l,y);ctx.lineTo(W-plot.r,y);ctx.stroke();
+      ctx.fillText((100-i*25)+"%",18,y+5);
+    }
+    for(let i=0;i<=5;i++){
+      const x=plot.l+pw*i/5;
+      ctx.beginPath();ctx.moveTo(x,plot.t);ctx.lineTo(x,H-plot.b);ctx.stroke();
+      ctx.fillText(String(i*20),x-8,H-22);
+    }
+    ctx.fillStyle="#344054";ctx.fillText("Relative operation count (each curve scaled to its own maximum)",plot.l,15);
+    ctx.fillText("Input size n",W/2-35,H-4);
+    keys.forEach(k=>{
+      const max=functions[k](maxX);
+      ctx.strokeStyle=colors[k];ctx.lineWidth=3;ctx.beginPath();
+      for(let x=2;x<=maxX;x++){
+        const yVal=functions[k](x)/max;
+        const px=plot.l+(x-2)/(maxX-2)*pw, py=plot.t+(1-yVal)*ph;
+        if(x===2)ctx.moveTo(px,py);else ctx.lineTo(px,py);
+      }
+      ctx.stroke();
+      const px=plot.l+(n-2)/(maxX-2)*pw,py=plot.t+(1-functions[k](n)/max)*ph;
+      ctx.fillStyle=colors[k];ctx.beginPath();ctx.arc(px,py,6,0,Math.PI*2);ctx.fill();
+    });
+    $("legend").innerHTML=keys.map(k=>`<span><i class="key" style="background:${colors[k]}"></i>${names[k]}</span>`).join("");
+    $("complexity-stats").innerHTML=keys.map(k=>{
+      const raw=functions[k](n);
+      return `<div class="stat"><small>${names[k]} at n=${n}</small><strong>${raw.toLocaleString(undefined,{maximumFractionDigits:2})}</strong><small>relative model operations</small></div>`;
+    }).join("");
+  }
+  $("size").addEventListener("input",drawGrowth);
+  $("scale").addEventListener("change",drawGrowth);
+
+  function runComparison() {
+    const secret=$("secret").value, guess=$("guess").value, mode=$("mode").value;
+    if(!/^\d{1,8}$/.test(secret)){ $("secret").focus(); alert("Enter a secret containing 1 to 8 digits."); return; }
+    if(!/^\d{1,8}$/.test(guess)){ $("guess").focus(); alert("Enter a guess containing 1 to 8 digits."); return; }
+    const len=Math.max(secret.length,guess.length);
+    let firstMismatch=-1;
+    for(let i=0;i<len;i++){
+      if(firstMismatch===-1 && (secret[i]??"") !== (guess[i]??"")) firstMismatch=i;
+    }
+    const equal=secret===guess;
+    const leakyWork=firstMismatch===-1 ? len : firstMismatch+1;
+    const fixedWork=len;
+    const chosen=mode==="leaky"?leakyWork:fixedWork;
+    $("steps").innerHTML=Array.from({length:len},(_,i)=>{
+      const a=secret[i]??"∅",b=guess[i]??"∅";
+      const match=a===b;
+      const active=mode==="constant" || i<leakyWork;
+      return `<span class="bit ${active?(match?"match":"miss"):""}" title="Position ${i+1}">${active?(match?"✓":"×"):"—"}</span>`;
+    }).join("");
+    $("timing-stats").innerHTML=`
+      <div class="stat"><small>Result</small><strong>${equal?"Match":"No match"}</strong></div>
+      <div class="stat"><small>Selected model work</small><strong>${chosen} units</strong></div>
+      <div class="stat"><small>First mismatch</small><strong>${firstMismatch<0?"None":`Position ${firstMismatch+1}`}</strong></div>
+      <div class="stat"><small>Characters considered</small><strong>${mode==="leaky"?leakyWork:len} / ${len}</strong></div>`;
+    $("leaky-bar").style.width=(leakyWork/len*100)+"%";
+    $("fixed-bar").style.width="100%";
+    $("leaky-label").textContent=`${leakyWork} illustrative unit${leakyWork===1?"":"s"} — stops at first mismatch`;
+    $("fixed-label").textContent=`${fixedWork} illustrative units — processes the full length`;
+  }
+  $("run").addEventListener("click",runComparison);
+  $("reset").addEventListener("click",()=>{
+    $("secret").value="5831";$("guess").value="5800";$("mode").value="leaky";runComparison();
+  });
+  $("mode").addEventListener("change",runComparison);
+  $("secret").addEventListener("input",()=>{if($("secret").value.length<=8 && /^\d*$/.test($("secret").value))runComparison();});
+  $("guess").addEventListener("input",()=>{if($("guess").value.length<=8 && /^\d*$/.test($("guess").value))runComparison();});
+  drawGrowth();runComparison();
+})();
+</script>
+</body>
+</html>
